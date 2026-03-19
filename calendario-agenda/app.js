@@ -160,3 +160,11 @@ function renderizarModalTarefas(k) {
         </div>
     `).join('')
 }
+
+const taskInput = document.getElementById("taskInput");
+
+taskInput.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+        adicionarTarefaDia();
+    }
+});
