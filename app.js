@@ -1,3 +1,6 @@
+import { db } from './firebase.js'
+import { doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
+
 const sessao = localStorage.getItem('sessao')
 
 const meses = [
@@ -25,14 +28,24 @@ let hoje = new Date()
 let anoAtual = hoje.getFullYear()
 let mesAtual = hoje.getMonth()
 let diaSelecionado = null
-let tarefas = JSON.parse(localStorage.getItem('tarefas-' + sessao) || '{}')
+let tarefas = {}
 
 function chave(ano, mes, dia) {
     return `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
 }
 
-function salvar() {
-    localStorage.setItem('tarefas-' + sessao, JSON.stringify(tarefas))
+async function salvar() {
+    const ref = doc(db, 'usuarios', sessao)
+    await setDoc(ref, { tarefas: tarefas })
+}
+
+async function carregarTarefas() {
+    const ref = doc(db, 'usuarios', sessao)
+    const snap = await getDoc(ref)
+    if (snap.exists()) {
+        tarefas = snap.data().tarefas || {}
+    }
+    renderizarCalendario()
 }
 
 function renderizarCalendario() {
@@ -81,13 +94,11 @@ function renderizarCalendario() {
         cal.appendChild(d)
     }
 }
-renderizarCalendario()
 
-
-function mudarMes (direcao) {
+function mudarMes(direcao) {
     mesAtual += direcao
-    if (mesAtual > 11) {mesAtual = 0; anoAtual++}
-    if (mesAtual < 0) {mesAtual = 11; anoAtual--}
+    if (mesAtual > 11) { mesAtual = 0; anoAtual++ }
+    if (mesAtual < 0)  { mesAtual = 11; anoAtual-- }
     renderizarCalendario()
 }
 
@@ -96,8 +107,8 @@ function abrirModal(dia) {
     const k = chave(anoAtual, mesAtual, dia)
     const data = new Date(anoAtual, mesAtual, dia)
     const nomeDia = diasSemana[data.getDay()]
-    
-    document.getElementById('modalDate').textContent = 
+
+    document.getElementById('modalDate').textContent =
         `${nomeDia}, ${dia} de ${meses[mesAtual].toLowerCase()} de ${anoAtual}`
 
     renderizarModalTarefas(k)
@@ -113,7 +124,7 @@ function fecharModal(event) {
     renderizarCalendario()
 }
 
-function adicionarTarefaDia() {
+async function adicionarTarefaDia() {
     if (!diaSelecionado) return
     const input = document.getElementById('taskInput')
     const texto = input.value.trim()
@@ -122,24 +133,24 @@ function adicionarTarefaDia() {
     const k = chave(anoAtual, mesAtual, diaSelecionado)
     if (!tarefas[k]) tarefas[k] = []
     tarefas[k].push({ id: Date.now(), texto, done: false })
-    salvar()
+    await salvar()
     renderizarModalTarefas(k)
     input.value = ''
     input.focus()
 }
 
-function toggleTarefa(k, id) {
+async function toggleTarefa(k, id) {
     const t = (tarefas[k] || []).find(t => t.id === id)
     if (t) {
         t.done = !t.done
-        salvar()
+        await salvar()
         renderizarModalTarefas(k)
     }
 }
 
-function excluirTarefa(k, id) {
+async function excluirTarefa(k, id) {
     tarefas[k] = (tarefas[k] || []).filter(t => t.id !== id)
-    salvar()
+    await salvar()
     renderizarModalTarefas(k)
 }
 
@@ -152,7 +163,7 @@ function renderizarModalTarefas(k) {
         return
     }
 
-    lista.innerHTML = items.map (t => `
+    lista.innerHTML = items.map(t => `
         <div class="modal-task ${t.done ? 'done' : ''}">
             <button class="check-btn" onclick="toggleTarefa('${k}', ${t.id})">✓</button>
             <span class="modal-task-text">${t.texto}</span>
@@ -161,10 +172,15 @@ function renderizarModalTarefas(k) {
     `).join('')
 }
 
-const taskInput = document.getElementById("taskInput");
+document.getElementById('taskInput').addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') adicionarTarefaDia()
+})
 
-taskInput.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") {
-        adicionarTarefaDia();
-    }
-});
+window.mudarMes = mudarMes
+window.abrirModal = abrirModal
+window.fecharModal = fecharModal
+window.adicionarTarefaDia = adicionarTarefaDia
+window.toggleTarefa = toggleTarefa
+window.excluirTarefa = excluirTarefa
+
+carregarTarefas()

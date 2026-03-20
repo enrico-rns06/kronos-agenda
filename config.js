@@ -1,35 +1,22 @@
-// Sessão
+import { auth, db } from './firebase.js'
+import { updatePassword, reauthenticateWithCredential, EmailAuthProvider, deleteUser } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
+import { doc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js'
+
 const sessao = localStorage.getItem('sessao')
 
 if (!sessao) {
     window.location.href = 'login.html'
 }
 
-// Mostrar nome
 document.getElementById('nomeUsuario').textContent = 'Olá, ' + sessao + '!'
 
-
 // Mudar senha
-document.getElementById('mudarSenha').addEventListener('submit', function (evento) {
+document.getElementById('mudarSenha').addEventListener('submit', async function(evento) {
     evento.preventDefault()
 
     const senhaAtual = document.getElementById('senhaAtual').value
     const novaSenha = document.getElementById('novaSenha').value
     const confirmarSenha = document.getElementById('confirmarSenha').value
-
-    let usuarios = JSON.parse(localStorage.getItem('usuarios')) || []
-
-    const usuario = usuarios.find(u => u.usuario === sessao)
-
-    if (!usuario) {
-        alert('Usuário não encontrado')
-        return
-    }
-
-    if (usuario.senha !== senhaAtual) {
-        alert('Senha atual incorreta')
-        return
-    }
 
     if (novaSenha !== confirmarSenha) {
         alert('A nova senha e a confirmação não coincidem')
@@ -41,35 +28,55 @@ document.getElementById('mudarSenha').addEventListener('submit', function (event
         return
     }
 
-    // Atualizar senha
-    usuario.senha = novaSenha
+    try {
+        const usuario = auth.currentUser
+        const email = sessao + '@kronos.app'
+        const credencial = EmailAuthProvider.credential(email, senhaAtual)
 
-    localStorage.setItem('usuarios', JSON.stringify(usuarios))
+        await reauthenticateWithCredential(usuario, credencial)
+        await updatePassword(usuario, novaSenha)
 
-    alert('Senha atualizada com sucesso!')
+        alert('Senha atualizada com sucesso!')
+        document.getElementById('senhaAtual').value = ''
+        document.getElementById('novaSenha').value = ''
+        document.getElementById('confirmarSenha').value = ''
+    } catch (erro) {
+        if (erro.code === 'auth/wrong-password' || erro.code === 'auth/invalid-credential') {
+            alert('Senha atual incorreta')
+        } else {
+            alert('Erro ao atualizar senha: ' + erro.message)
+        }
+    }
 })
 
-
 // Apagar conta
-document.getElementById('apagarConta').addEventListener('submit', function (evento) {
+document.getElementById('apagarConta').addEventListener('submit', async function(evento) {
     evento.preventDefault()
 
-    const confirmar = confirm('Tem certeza que deseja apagar sua conta?')
-
+    const confirmar = confirm('Tem certeza que deseja apagar sua conta? Essa ação é irreversível.')
     if (!confirmar) return
 
-    let usuarios = JSON.parse(localStorage.getItem('usuarios')) || []
+    try {
+        const usuario = auth.currentUser
 
-    // Remover usuario
-    usuarios = usuarios.filter(u => u.usuario !== sessao)
-    localStorage.setItem('usuarios', JSON.stringify(usuarios))
+        // Remover tarefas do Firestore
+        await deleteDoc(doc(db, 'usuarios', sessao))
 
-    // Remover tarefas
-    localStorage.removeItem('tarefas-' + sessao)
+        // Apagar conta do Firebase Auth
+        await deleteUser(usuario)
 
-    // Remover sessao
-    localStorage.removeItem('sessao')
+        // Limpar sessão
+        localStorage.removeItem('sessao')
 
-    // Redirecionar
-    window.location.href = 'login.html'
+        alert('Conta apagada com sucesso.')
+        window.location.href = 'login.html'
+    } catch (erro) {
+        if (erro.code === 'auth/requires-recent-login') {
+            alert('Por segurança, faça login novamente antes de apagar a conta.')
+            localStorage.removeItem('sessao')
+            window.location.href = 'login.html'
+        } else {
+            alert('Erro ao apagar conta: ' + erro.message)
+        }
+    }
 })

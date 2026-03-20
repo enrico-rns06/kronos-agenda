@@ -1,17 +1,23 @@
-document.getElementById('formLogin').addEventListener('submit',function(evento) { 
+import { auth } from './firebase.js'
+import { signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js'
+
+document.getElementById('formLogin').addEventListener('submit', async function(evento) {
     evento.preventDefault()
 
-const usuario = document.getElementById('inputUsuario').value
-const senha = document.getElementById('inputSenha').value
-const usuarios = JSON.parse(localStorage.getItem('usuarios') || '[]')
-const usuarioEncontrado = usuarios.find(u => u.usuario === usuario && u.senha === senha)
+    const usuario = document.getElementById('inputUsuario').value.trim()
+    const senha = document.getElementById('inputSenha').value
 
-if (!usuarioEncontrado) {
-    alert('Usuário ou senha incorretos!')
-    return
-}
+    if (!usuario) {
+        alert('Digite o nome de usuário!')
+        return
+    }
 
-localStorage.setItem('sessao', usuario)
-window.location.href = 'index.html'
-
+    try {
+        const email = usuario + '@kronos.app'
+        await signInWithEmailAndPassword(auth, email, senha)
+        localStorage.setItem('sessao', usuario)
+        window.location.href = 'index.html'
+    } catch (erro) {
+        alert('Usuário ou senha incorretos!')
+    }
 })
