@@ -760,3 +760,63 @@ main {
     position: relative;
     z-index: 1;
 }
+
+/* ─── DRAG AND DROP ─────────────────────────────────────────────────────────── */
+
+/* Handle de arrastar (ícone de 6 pontos) */
+.drag-handle {
+  cursor: grab;
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: var(--transition);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.modal-task:hover .drag-handle {
+  color: var(--purple-light);
+}
+
+.modal-task.dragging {
+  opacity: 0.4;
+  border-color: var(--purple) !important;
+  background: var(--purple-bg) !important;
+  box-shadow: var(--glow-purple);
+  cursor: grabbing;
+}
+
+.modal-task.drag-over {
+  border-color: var(--cyan) !important;
+  background: var(--cyan-bg) !important;
+  box-shadow: var(--glow-cyan);
+  transform: scale(1.01);
+}
+
+.edit-input {
+  flex: 1;
+  background: var(--surface3);
+  border: 1px solid var(--purple);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  padding: 2px 8px;
+  outline: none;
+  width: 100%;
+  margin-bottom: 0;
+  box-shadow: 0 0 0 3px rgba(123, 79, 233, 0.15), var(--glow-sm);
+}
+
+.modal-task-text {
+  cursor: text;
+}
+
+.modal-task-text:hover {
+  color: var(--text);
+}

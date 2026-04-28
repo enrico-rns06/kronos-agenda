@@ -30,6 +30,10 @@ let mesAtual = hoje.getMonth()
 let diaSelecionado = null
 let tarefas = {}
 
+// Drag and drop state
+let dragSrcIndex = null
+let dragChave = null
+
 function chave(ano, mes, dia) {
     return `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
 }
@@ -154,6 +158,89 @@ async function excluirTarefa(k, id) {
     renderizarModalTarefas(k)
 }
 
+// ─── EDITAR TAREFA ───────────────────────────────────────────────────────────
+
+function iniciarEdicao(k, id, spanEl) {
+    // Evita abrir dois inputs ao mesmo tempo
+    if (document.querySelector('.edit-input')) return
+
+    const tarefa = (tarefas[k] || []).find(t => t.id === id)
+    if (!tarefa) return
+
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.value = tarefa.texto
+    input.className = 'edit-input'
+    input.maxLength = 60
+
+    spanEl.replaceWith(input)
+    input.focus()
+    input.select()
+
+    async function confirmar() {
+        const novoTexto = input.value.trim()
+        if (novoTexto && novoTexto !== tarefa.texto) {
+            tarefa.texto = novoTexto
+            await salvar()
+        }
+        renderizarModalTarefas(k)
+    }
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); confirmar() }
+        if (e.key === 'Escape') renderizarModalTarefas(k)
+    })
+
+    input.addEventListener('blur', confirmar)
+}
+
+// ─── DRAG AND DROP ───────────────────────────────────────────────────────────
+
+function onDragStart(e, index, k) {
+    dragSrcIndex = index
+    dragChave = k
+    e.currentTarget.classList.add('dragging')
+    e.dataTransfer.effectAllowed = 'move'
+}
+
+function onDragEnd(e) {
+    e.currentTarget.classList.remove('dragging')
+    document.querySelectorAll('.modal-task').forEach(el => el.classList.remove('drag-over'))
+}
+
+function onDragOver(e, index) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+
+    document.querySelectorAll('.modal-task').forEach(el => el.classList.remove('drag-over'))
+    if (index !== dragSrcIndex) {
+        e.currentTarget.classList.add('drag-over')
+    }
+}
+
+function onDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over')
+}
+
+async function onDrop(e, targetIndex, k) {
+    e.preventDefault()
+    e.currentTarget.classList.remove('drag-over')
+
+    if (dragSrcIndex === null || dragSrcIndex === targetIndex || dragChave !== k) return
+
+    const lista = tarefas[k]
+    const [movido] = lista.splice(dragSrcIndex, 1)
+    lista.splice(targetIndex, 0, movido)
+
+    dragSrcIndex = null
+    dragChave = null
+
+    await salvar()
+    renderizarModalTarefas(k)
+}
+
+// ─── RENDER MODAL ────────────────────────────────────────────────────────────
+
 function renderizarModalTarefas(k) {
     const lista = document.getElementById('modalTasks')
     const items = tarefas[k] || []
@@ -163,13 +250,53 @@ function renderizarModalTarefas(k) {
         return
     }
 
-    lista.innerHTML = items.map(t => `
-        <div class="modal-task ${t.done ? 'done' : ''}">
-            <button class="check-btn" onclick="toggleTarefa('${k}', ${t.id})">✓</button>
-            <span class="modal-task-text">${t.texto}</span>
-            <button class="del-btn" onclick="excluirTarefa('${k}', ${t.id})">×</button>
-        </div>
-    `).join('')
+    lista.innerHTML = ''
+
+    items.forEach((t, index) => {
+        const div = document.createElement('div')
+        div.className = 'modal-task' + (t.done ? ' done' : '')
+        div.draggable = true
+        div.dataset.index = index
+
+        // Drag handle
+        const handle = document.createElement('span')
+        handle.className = 'drag-handle'
+        handle.innerHTML = '⠿'
+        handle.title = 'Arrastar para reordenar'
+
+        // Check button
+        const checkBtn = document.createElement('button')
+        checkBtn.className = 'check-btn'
+        checkBtn.textContent = '✓'
+        checkBtn.onclick = () => toggleTarefa(k, t.id)
+
+        // Texto (clicável para editar)
+        const span = document.createElement('span')
+        span.className = 'modal-task-text'
+        span.textContent = t.texto
+        span.title = 'Clique duas vezes para editar'
+        span.ondblclick = () => iniciarEdicao(k, t.id, span)
+
+        // Delete button
+        const delBtn = document.createElement('button')
+        delBtn.className = 'del-btn'
+        delBtn.textContent = '×'
+        delBtn.onclick = () => excluirTarefa(k, t.id)
+
+        div.appendChild(handle)
+        div.appendChild(checkBtn)
+        div.appendChild(span)
+        div.appendChild(delBtn)
+
+        // Drag events
+        div.addEventListener('dragstart', e => onDragStart(e, index, k))
+        div.addEventListener('dragend',   e => onDragEnd(e))
+        div.addEventListener('dragover',  e => onDragOver(e, index))
+        div.addEventListener('dragleave', e => onDragLeave(e))
+        div.addEventListener('drop',      e => onDrop(e, index, k))
+
+        lista.appendChild(div)
+    })
 }
 
 document.getElementById('taskInput').addEventListener('keydown', function(event) {
